@@ -35,7 +35,6 @@ const loadDocsFromCsv = (csvFilePath: string) => {
               technicianName: formattedRow['Technician Name'] || '',
               technicianId: formattedRow['Technician ID'] || '',
               technicianEmail: formattedRow['Technician Email'] || '',
-              chatLog: formattedRow['Chatlog'] || '',
               notes: formattedRow['Notes'] || '',
               technicianGroup: formattedRow['Technician Group'] || '',
             },
@@ -52,14 +51,14 @@ const loadDocsFromCsv = (csvFilePath: string) => {
   const TIKTOKEN_ENCODING = 'p50k_base';
   const MAX_CONTENT_LENGTH = 8192;
 
-  function splitEntryRecursively(entry: string, maxTokens: number): string[] {
-      if (tiktokenLen(entry) <= maxTokens) {
-          return [entry];
+  function splitChatlog(text: string, maxTokens=MAX_CONTENT_LENGTH): string[] {
+      if (tiktokenLen(text) <= maxTokens) {
+          return [text];
       } else {
-          const middle = Math.floor(entry.length / 2);
-          const left = entry.substring(0, middle);
-          const right = entry.substring(middle);
-          return splitEntryRecursively(left, maxTokens).concat(splitEntryRecursively(right, maxTokens));
+          const middle = Math.floor(text.length / 2);
+          const left = text.substring(0, middle);
+          const right = text.substring(middle);
+          return splitChatlog(left, maxTokens).concat(splitChatlog(right, maxTokens));
       }
   }
   
@@ -70,30 +69,60 @@ const loadDocsFromCsv = (csvFilePath: string) => {
           p50k_base.pat_str
       );
       const tokens = encoding.encode(text);
+      if (tokens.length === 11889) console.log(text)
       encoding.free(); 
-      console.log(text, tokens.length)
       return tokens.length;
   }
 
+  import { v4 as uuidv4 } from 'uuid'; // Import the UUID library
 
-  const createChunks = async (docs: Document<Record<string, any>>[]) => {
+
+
+  class ChunkDocument extends Document {
+      parentId: string;
+      chunkNumber: number;
+  
+      constructor({ parentId, chunkNumber, metadata, content }: {
+          parentId: string,
+          chunkNumber: number,
+          metadata: Record<string, any>,
+          content: string
+      }) {
+          super({ metadata, pageContent: content });
+          this.parentId = parentId;
+          this.chunkNumber = chunkNumber;
+      }
+  }
+
+
+  const createChunks = async (docs: Document<Record<string, any>>[]): Promise<ChunkDocument[]> => {
     const textSplitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 500,
-        chunkOverlap: 10,
-        separators: ["\n\n", "\n"],
-        lengthFunction: tiktokenLen
+        chunkSize: 2000,
+        chunkOverlap: 20,
     });
 
-    let docPromises = [];
+    const chunkDocuments: ChunkDocument[] = [];
+
     for (const doc of docs) {
-        const docOutput = await textSplitter.splitDocuments([
-            new Document({ pageContent: doc['pageContent'] }),
-        ]);
-        docPromises.push(docOutput);
+        const parentId = uuidv4(); // Generate a unique ID for the parent document
+        const pageContent = new Document({ pageContent: doc['pageContent'] });
+        const docOutput = await textSplitter.splitDocuments([pageContent]);
+
+        docOutput.forEach((rec, index) => {
+            const chunkDoc = new ChunkDocument({
+                parentId: parentId,
+                chunkNumber: index + 1,
+                metadata: { ...doc.metadata },
+                content: rec['pageContent'],
+            });
+
+            chunkDocuments.push(chunkDoc);
+        });
     }
 
-    return Promise.all(docPromises);
+    return chunkDocuments;
 };
+
 
 
   
@@ -104,7 +133,6 @@ const init = async () => {
     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX!)
     const docs = await loadDocsFromCsv('src/data/raw/chatlogSample.csv');
     const chunks = await createChunks(docs);
-    const flattenedChunks = chunks.flat();
 
     const openAiEmbeddingsOptions = {
         apiKey: process.env.OPENAI_API_KEY,
@@ -130,7 +158,17 @@ const init = async () => {
     const dbConfig = { pineconeIndex, maxConcurrency: 5 }
 
     await PineconeStore.fromDocuments(
-        flattenedChunks, new OpenAIEmbeddings(openAiEmbeddingsOptions), dbConfig);
+        chunks, new OpenAIEmbeddings(openAiEmbeddingsOptions), dbConfig);
 }
 
 init();
+
+const deleteIndex = async () => {
+    const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! })
+    const index = pc.index("guardian-chat")
+    
+    // await index.deleteAll();
+    await pc.deleteIndex('guardian-chat')
+}
+
+// deleteIndex()
