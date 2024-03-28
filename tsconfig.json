@@ -17,9 +17,9 @@
     "skipLibCheck": true,
 
     /* Bundler mode */
-    "allowImportingTsExtensions": true,
+    // "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
-    "noEmit": true,
+    // "noEmit": true,
     "jsx": "react-jsx",
 
     /* Linting */
@@ -32,7 +32,7 @@
       ]
     }
   },
-  "include": ["src"],
+  "include": ["src/**/*", "scripts/**/*"],
   "ts-node": {
     "esm": true
   },

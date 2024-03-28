@@ -12,6 +12,9 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { Tiktoken } from 'tiktoken/lite';
 import p50k_base from 'tiktoken/encoders/p50k_base.json' assert { type: 'json'};
 
+const SAMPLE_CHAT_LOGS_PATH = 'src/data/raw/chatlogSample.csv'
+const CHAT_LOGS_PATH = 'src/data/raw/chatlog.csv'
+
 const loadDocsFromCsv = (csvFilePath: string) => {
     return new Promise<Document[]>((resolve, reject) => {
       const docs: Document[] = [];
@@ -117,7 +120,7 @@ const loadDocsFromCsv = (csvFilePath: string) => {
 };
 
 const upsert = async () => {
-    const docs = await loadDocsFromCsv('src/data/raw/chatlogSample.csv');
+    const docs = await loadDocsFromCsv(CHAT_LOGS_PATH);
     const chunks = await createChunks(docs);
 
     const openAiEmbeddingsOptions = {

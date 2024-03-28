@@ -8,9 +8,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
     "dev": "nodemon --exec ts-node src/index.ts",
-    "upsert": "tsc && node ./build/scripts/upsert.js",
-    "delete:index": "tsc && node ./build/scripts/deleteIndex.js",
-    "create:index": "tsc && node ./build/scripts/createIndex.js"
+    "clean": "tsc && node ./dist/scripts/cleanData.js",
+    "upsert": "tsc && node ./dist/scripts/upsert.js",
+    "delete:index": "tsc && node ./dist/scripts/deleteIndex.js",
+    "create:index": "tsc && node ./dist/scripts/createIndex.js"
   },
   "keywords": [],
   "author": "",
