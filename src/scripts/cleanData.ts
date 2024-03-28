@@ -48,8 +48,6 @@ const cleanChatLog = (chatLog: string): string => {
     ];
 
     const incomingSessionPattern = /^(\d{1,2}:\d{2} (?:AM|PM)) Incoming session from:.*Good luck on your exam!/s;
-// /^\d{1,2}:\d{2} (?:AM|PM)|^\d{1,2}:\d{2}/i
-// /(?:(?:\d{1,2}:\d{2} (?:AM|PM))|(?:[01]?\d|2[0-3]):\d{2})/gi
 
     const messages = chatLog.split(/(?:(?:\d{1,2}:\d{2} (?:AM|PM))|(?:[01]?\d|2[0-3]):\d{2})/gi);
     const cleanedMessages = messages.map((message) => {
