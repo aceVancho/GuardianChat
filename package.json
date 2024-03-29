@@ -10,9 +10,9 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "clean": "tsc && node ./dist/scripts/cleanData.js",
     "upsert": "tsc && node ./dist/scripts/upsert.js",
-    "upsertNew": "tsc && node ./dist/scripts/upsertNew.js",
     "delete:index": "tsc && node ./dist/scripts/deleteIndex.js",
-    "create:index": "tsc && node ./dist/scripts/createIndex.js"
+    "create:index": "tsc && node ./dist/scripts/createIndex.js",
+    "replace:index": "npm run delete:index && npm run create:index && npm run upsert"
   },
   "keywords": [],
   "author": "",
