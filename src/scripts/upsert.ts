@@ -48,7 +48,7 @@ const loadChatLogsFromCsv = (csvFilePath: string): Promise<Session[]> => {
                         technicianEmail: formattedRow['Technician Email'] || '',
                         notes: formattedRow['Notes'] || '',
                         technicianGroup: formattedRow['Technician Group'] || '',
-                        chatLogTex: formattedRow['Chatlog'] ? String(formattedRow['Chatlog']) : ''
+                        text: formattedRow['Chatlog'] ? String(formattedRow['Chatlog']) : ''
                     },
                     chatLog: formattedRow['Chatlog'] ? String(formattedRow['Chatlog']) : ''
                 };

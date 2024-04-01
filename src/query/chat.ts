@@ -27,8 +27,8 @@ import { pineconeQuery, prompts } from "./query.js";
 
 
 dotenv.config();
-export const LANGCHAIN_TRACING_V2 = "true"
-export const LANGCHAIN_API_KEY = process.env.OPEN_AI_KEY! 
+const ZEP_API_KEY = process.env.ZEP_API_KEY!
+const zepClient = await ZepClient.init(ZEP_API_KEY,);
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -37,161 +37,13 @@ const rl = readline.createInterface({
 
 const inputPrompt = (question: string) => new Promise<string>((resolve) => rl.question(question, resolve));
 
-// ************ LangChain Chat Model ************
-
-// const messages = [
-//   new SystemMessage("Your name is Bob and you like rabbits."),
-//   new HumanMessage("I am Adam and I like pizza."),
-// ];
-
-
-// const response = await chatModel.invoke(messages);
-
-// console.log(response.content);
-
-// chatModel.generate
-
-// const chatModel = new ChatOpenAI({
-//   openAIApiKey: process.env.OPEN_AI_KEY!,
-// //   modelName: process.env.CHAT_COMPLETION_MODEL
-// });
-
-// const history = new ChatMessageHistory();
-
-// while (true) {
-//     const inputText = await inputPrompt('Input:  ')
-//     const aiResponse = await chatModel.invoke(inputText);
-
-//     await history.addMessage(new HumanMessage(inputText));
-//     await history.addMessage(new AIMessage(aiResponse));
-
-//     console.log(aiResponse.content);
-
-// }
-
-// ************ ZEP TESTING ************
-// ************ VectorStore Example ************
-
-// const ZEP_API_KEY = process.env.ZEP_API_KEY!
-// const zepClient = await ZepClient.init(ZEP_API_KEY,);
-// const vectorStore = await ZepVectorStore.init({
-//     client: zepClient,
-//     collectionName: 'GuardianChat',
-// });
-
-// const retriever = vectorStore.asRetriever();
-// const prompt = ChatPromptTemplate.fromMessages([
-//     [
-//         "system",
-//         `Answer the question based only on the following context:
-//         {context}`,
-//     ],
-//     [
-//         "human",
-//         "{question}"
-//     ],
-// ]);
-
-// const DEFAULT_DOCUMENT_PROMPT = PromptTemplate.fromTemplate("{pageContent}");
-
-// async function combineDocuments(
-//     docs: Document[],
-//     documentPrompt: BasePromptTemplate = DEFAULT_DOCUMENT_PROMPT,
-//     documentSeparator: string = "\n\n",
-// ) {
-//     const docStrings: string[] = await Promise.all(
-//         docs.map((doc) => {
-//             return formatDocument(doc, documentPrompt);
-//         }),
-//     );
-//     return docStrings.join(documentSeparator);
-// }
-
-// const outputParser = new StringOutputParser();
-
-// const setupAndRetrieval = RunnableMap.from({
-//     context: new RunnableLambda({
-//         func: (input: string) =>
-//             retriever.invoke(input).then(combineDocuments),
-//     }),
-//     question: new RunnablePassthrough(),
-// });
-
-// const chatModel = new ChatOpenAI({
-//   openAIApiKey: process.env.OPEN_AI_KEY!,
-// //   modelName: process.env.CHAT_COMPLETION_MODEL
-// });
-
-// const chain = setupAndRetrieval
-//     .pipe(prompt)
-//     .pipe(chatModel)
-//     .pipe(outputParser)
-//     .withConfig({
-//         callbacks: [new ConsoleCallbackHandler()],
-//     }); // Optional console callback handler if you want to see input and output of each step in the chain
-
-
-// while (true) {
-//     const inputText = await inputPrompt('Input:  ')
-//     const result = await chain.invoke(inputText); // Pass the question as input
-//     console.log(result);
-// }
-
-// ************ MessageHistory Example ************
-
-
-// const ZEP_API_KEY = process.env.ZEP_API_KEY!
-// const zepClient = await ZepClient.init(ZEP_API_KEY,);
-
-// const prompt = ChatPromptTemplate.fromMessages([
-//     ["system", "Answer the user's question below. Be polite and helpful:"],
-//     new MessagesPlaceholder("history"),
-//     ["human", "{question}"],
-// ]);
-
-// const chain = prompt.pipe(
-//     new ChatOpenAI({
-//         temperature: 0.8,
-//         modelName: process.env.CHAT_COMPLETION_MODEL,
-//     }),
-// );
-
-// const chainWithHistory = new RunnableWithMessageHistory({
-//     runnable: chain,
-//     getMessageHistory: (sessionId) =>
-//         new ZepChatMessageHistory({
-//             client: zepClient,
-//             sessionId: sessionId,
-//             memoryType: "perpetual",
-//         }),
-//     inputMessagesKey: "question",
-//     historyMessagesKey: "history",
-// });
-
-// const result = await chainWithHistory.invoke(
-//     {
-//         question: "How many licks does it take to get to the center of a tootsie pop?",
-//     },
-//     {
-//         configurable: {
-//             sessionId: "1",
-//         },
-//     },
-// );
-
-// console.log(result)
-
-/////////
-const ZEP_API_KEY = process.env.ZEP_API_KEY!
-const zepClient = await ZepClient.init(ZEP_API_KEY,);
-
 const prompt = ChatPromptTemplate.fromMessages([
     ["system", prompts.systemPrompts.systemPrompt1],
     ["system", prompts.systemPrompts.systemPrompt2],
     ["system", prompts.systemPrompts.systemPrompt3],
     ["system", prompts.systemPrompts.systemPrompt4],
-    // ["system", 'Here are relevant past conversations: {relevantConversations}'],
-    // new MessagesPlaceholder("relevantConversations"),
+    ["system", 'Here are relevant past conversations: {additionalContext}'],
+    new MessagesPlaceholder("additionalContext"),
     ["system", 'Current conversation history:'],
     new MessagesPlaceholder("history"),
     ["human", "{question}"],
@@ -220,15 +72,25 @@ const chainWithHistory = new RunnableWithMessageHistory({
 
 while (true) {
     const inputText = await inputPrompt('Input:  ')
-    const result = await chainWithHistory.invoke({
-        question: inputText,
-    },
-    {
+    const matches = await pineconeQuery(inputText)
+    const additionalContext = matches.map((match) => {
+        return new SystemMessage({ 
+            content: match?.metadata?.text as string,
+            response_metadata: {}
+        })
+    });
+
+    const input = { question: inputText, additionalContext }
+
+    const options = {
         configurable: {
             sessionId: "3",
         },
-    },); 
-    console.log(result);
+    };
+
+    const result = await chainWithHistory.invoke(input, options); 
+    console.log(result.content);
+    console.log(result.response_metadata);
 }
 
 

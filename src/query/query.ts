@@ -34,7 +34,6 @@ export const pineconeQuery = async (query: string) => {
       includeMetadata: true
   });
 
-  console.log(queryResponse.matches)
   return queryResponse.matches;
 }
 
