@@ -1,9 +1,11 @@
 import { ChatOpenAI } from "@langchain/openai";
 import dotenv from 'dotenv';
 import readline from 'readline';
+import { v4 as uuidv4 } from 'uuid';
+
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { ZepClient } from "@getzep/zep-js";
+import { Session, ZepClient } from "@getzep/zep-js";
 import { ZepChatMessageHistory } from "@getzep/zep-js/langchain";
 import {
     BasePromptTemplate,
@@ -24,6 +26,7 @@ import {
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ConsoleCallbackHandler } from "@langchain/core/tracers/console";
 import { pineconeQuery, prompts } from "./query.js";
+import { processFilesInDirectory } from "../utils/utils.js";
 
 
 dotenv.config();
@@ -42,8 +45,11 @@ const prompt = ChatPromptTemplate.fromMessages([
     ["system", prompts.systemPrompts.systemPrompt2],
     ["system", prompts.systemPrompts.systemPrompt3],
     ["system", prompts.systemPrompts.systemPrompt4],
+    ["system", prompts.systemPrompts.systemPrompt5],
     ["system", 'Here are relevant past conversations: {additionalContext}'],
     new MessagesPlaceholder("additionalContext"),
+    ["system", 'Here is the associated data for this users exam now: {dataFromDB}'],
+    new MessagesPlaceholder("dataFromDB"),
     ["system", 'Current conversation history:'],
     new MessagesPlaceholder("history"),
     ["human", "{question}"],
@@ -70,9 +76,56 @@ const chainWithHistory = new RunnableWithMessageHistory({
     historyMessagesKey: "history",
 });
 
+const getDataFromDB = async () => {
+    const directoryPath = 'src/data/db/sessions/1059303213';
+    let data;
+    try {
+        data = await processFilesInDirectory(directoryPath);
+    } catch (error) {
+        console.error('Error processing files:', error);
+    }
+    return data;
+};
+
+const dataFromDB = await getDataFromDB();
+const session_id: string = uuidv4();
+const session: Session = new Session({
+    session_id,
+    metadata: dataFromDB || {}
+});
+zepClient.memory.addSession(session)
+
+const formatDataForSystemMessage = (data: any): string => {
+    let content = '';
+
+    if (data.enrollments && data.enrollments.length > 0) {
+        content += 'Enrollments:\n';
+        data.enrollments.forEach((enrollment: any) => {
+            Object.entries(enrollment).forEach(([key, value]) => {
+                content += `  ${key}: ${value}\n`;
+            });
+            content += '\n';
+        });
+    }
+
+    if (data.fulfillments && data.fulfillments.length > 0) {
+        content += 'Fulfillments:\n';
+        data.fulfillments.forEach((fulfillment: any) => {
+            Object.entries(fulfillment).forEach(([key, value]) => {
+                content += `  ${key}: ${value}\n`;
+            });
+            content += '\n';
+        });
+    }
+
+    return content.trim();
+};
+
 while (true) {
-    const inputText = await inputPrompt('Input:  ')
+    
+    const inputText = await inputPrompt('Input: ')
     const matches = await pineconeQuery(inputText)
+
     const additionalContext = matches.map((match) => {
         return new SystemMessage({ 
             content: match?.metadata?.text as string,
@@ -80,17 +133,23 @@ while (true) {
         })
     });
 
-    const input = { question: inputText, additionalContext }
+    const dataFromDBContent = formatDataForSystemMessage(dataFromDB);
 
     const options = {
         configurable: {
-            sessionId: "3",
+            sessionId: session_id,
         },
     };
+    const input = { 
+        question: inputText + '\n', 
+        additionalContext,
+        dataFromDB: new SystemMessage({ content: dataFromDBContent, response_metadata: {} }) 
+     }
+
 
     const result = await chainWithHistory.invoke(input, options); 
-    console.log(result.content);
-    console.log(result.response_metadata);
+    console.log(`\nAI Proctor: ${result.content}\n`);
+    // console.log(result.response_metadata);
 }
 
 

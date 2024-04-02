@@ -12,7 +12,8 @@
     "upsert": "tsc && node ./dist/scripts/upsert.js",
     "delete:index": "tsc && node ./dist/scripts/deleteIndex.js",
     "create:index": "tsc && node ./dist/scripts/createIndex.js",
-    "replace:index": "npm run delete:index && npm run create:index && npm run upsert"
+    "replace:index": "npm run delete:index && npm run create:index && npm run upsert",
+    "delete:sessions": "tsc && node ./dist/scripts/deleteSessions.js"
   },
   "keywords": [],
   "author": "",
