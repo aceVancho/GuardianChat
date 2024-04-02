@@ -91,10 +91,15 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const createEmbeddings = async (chatLogObjects: ChunkedChatLog[]) => {
     const openai = new OpenAI();
     const pineconeRecords: PineconeRecord<RecordMetadata>[] = [];
-    
-    for (const chatObject of chatLogObjects) {
-        let embeddingObj: any // @type CreateEmbeddingResponse
+
+    console.log(`Starting to create embeddings for ${chatLogObjects.length} chat log objects`);
+
+    for (let i = 0; i < chatLogObjects.length; i++) {
+        const chatObject = chatLogObjects[i];
+        let embeddingObj: any; // @type CreateEmbeddingResponse
         let finished = false;
+
+        console.log(`Creating embedding for chat log object ${i + 1} of ${chatLogObjects.length}`);
 
         while (!finished) {
             try {
@@ -104,9 +109,10 @@ const createEmbeddings = async (chatLogObjects: ChunkedChatLog[]) => {
                     input: chatObject.chatLog,
                 });
                 finished = true;
+                console.log(`Successfully created embedding for chat log object ${i + 1}`);
             } catch (error) {
-                console.error('CreateEmbedding Error:', error);
-                await sleep(5000);
+                console.error(`CreateEmbedding Error for chat log object ${i + 1}:`, error);
+                await sleep(1000);
             }
         }
 
@@ -116,23 +122,40 @@ const createEmbeddings = async (chatLogObjects: ChunkedChatLog[]) => {
                 values: embeddingObj.data[0].embedding,
                 metadata: chatObject.metadata,
             };
-    
+
             pineconeRecords.push(record);
         }
     }
 
+    console.log(`Finished creating embeddings for ${chatLogObjects.length} chat log objects`);
     return pineconeRecords;
 };
 
+
+const upsertBatch = async (index: ReturnType<typeof Pinecone.prototype.index>, records: PineconeRecord<RecordMetadata>[]) => {
+    try {
+        await index.upsert(records);
+        console.log(`Successfully upserted ${records.length} records`);
+    } catch (error) {
+        console.error(`Error upserting batch: ${error}`);
+    }
+};
+
 const upsert = async () => {
-    // const chatLogs = await loadChatLogsFromCsv(CHAT_LOGS_PATH);
-    const chatLogs = await loadChatLogsFromCsv(CHAT_LOGS_SAMPLE_PATH);
+    const chatLogs = await loadChatLogsFromCsv(CHAT_LOGS_PATH);
+    // const chatLogs = await loadChatLogsFromCsv(CHAT_LOGS_SAMPLE_PATH);
     const chatLogObjects = await createChunks(chatLogs);
     const pineconeRecords = await createEmbeddings(chatLogObjects)
-
+    
     const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! })
     const index = pc.index(process.env.PINECONE_INDEX!)
-    await index.upsert(pineconeRecords);
+    const BATCH_SIZE = 10; 
+    for (let i = 0; i < pineconeRecords.length; i += BATCH_SIZE) {
+        const batch = pineconeRecords.slice(i, i + BATCH_SIZE);
+        await upsertBatch(index, batch);
+        console.log('Upserted', i)
+    }
+    // await index.upsert(pineconeRecords);
 };
 
 upsert();

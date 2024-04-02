@@ -52,18 +52,14 @@ const cleanChatLog = (chatLog: string): string => {
     const messages = chatLog.split(/(?:(?:\d{1,2}:\d{2} (?:AM|PM))|(?:[01]?\d|2[0-3]):\d{2})/gi);
     const cleanedMessages = messages.map((message) => {
         const trimmedMessage = message.trim();
-        console.log(trimmedMessage)
         const messageWithoutTimestamp = trimmedMessage.replace(/^\d{1,2}:\d{2} (?:AM|PM) /i, '');
-        console.log(messageWithoutTimestamp)
 
         const isSystemMessage = systemMessageStarters.some((starter) => {
             return messageWithoutTimestamp.startsWith(starter) 
                 || incomingSessionPattern.test(trimmedMessage)
         })
 
-        console.log(isSystemMessage)
         const isInvalidMessage = /^\d+$/.test(messageWithoutTimestamp);
-        console.log(isInvalidMessage, '\n\n')
 
         return isSystemMessage || isInvalidMessage ? '' : message;
     });
