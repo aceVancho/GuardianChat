@@ -4,14 +4,14 @@ import readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
 
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
-import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, SystemMessage, BaseMessageChunk } from "@langchain/core/messages";
 import { Session, ZepClient } from "@getzep/zep-js";
 import { ZepChatMessageHistory } from "@getzep/zep-js/langchain";
 import {
     BasePromptTemplate,
     ChatPromptTemplate,
     PromptTemplate,
-    MessagesPlaceholder
+    MessagesPlaceholder,
 } from "@langchain/core/prompts";
 import { ZepVectorStore } from "@getzep/zep-js/langchain";
 import { formatDocument } from "langchain/schema/prompt_template";
@@ -55,12 +55,31 @@ const prompt = ChatPromptTemplate.fromMessages([
     ["human", "{question}"],
 ]);
 
-const chain = prompt.pipe(
-    new ChatOpenAI({
-        temperature: 0.8,
-        modelName: process.env.CHAT_COMPLETION_MODEL,
-    }),
-);
+const userConfirms = {
+    type: "function" as const,
+    function: {
+        "name": "user_confirms",
+        "description": "Determine if user confirms Terms of Service.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+            "userConfirmsTOS": {
+                "type": "boolean",
+                "description": "True or false"
+            }},
+            "required": ["userConfirmsTOS",]
+        }
+    }
+}
+
+const tools = [userConfirms]
+
+const llm = new ChatOpenAI({
+    temperature: 0.8,
+    modelName: process.env.CHAT_COMPLETION_MODEL,
+}).bind({ tools })
+
+const chain = prompt.pipe(llm);
 
 const chainWithHistory = new RunnableWithMessageHistory({
     runnable: chain,
@@ -93,6 +112,7 @@ const session: Session = new Session({
     session_id,
     metadata: dataFromDB || {}
 });
+
 zepClient.memory.addSession(session)
 
 const formatDataForSystemMessage = (data: any): string => {
@@ -121,8 +141,40 @@ const formatDataForSystemMessage = (data: any): string => {
     return content.trim();
 };
 
+let userAgreementStatus = false;
+
+interface UserConfirmation {
+    userConfirmsTOS: boolean;
+}
+
+const user_confirms = ({ userConfirmsTOS }: UserConfirmation) => {
+    userAgreementStatus = userConfirmsTOS;
+};
+
+// Create a mapping of function names to function references
+const functionMap: Record<string, Function> = {
+    user_confirms
+};
+
+const handleToolCalls = (result: BaseMessageChunk) => {
+    if (result.response_metadata.finish_reason === 'tool_calls') {
+        const { tool_calls } = result.lc_kwargs.additional_kwargs;
+        console.log(1);
+        if (!tool_calls) return;
+        console.log(2);
+        tool_calls.forEach((func: any) => {
+            const functionName = func.function.name;
+            const functionArgs = JSON.parse(func.function.arguments);
+            if (functionMap[functionName]) {
+                console.log(`Calling... ${functionName}(${func.function.arguments})`)
+                functionMap[functionName](functionArgs);
+            }
+        });
+    }
+};
+
+
 while (true) {
-    
     const inputText = await inputPrompt('Input: ')
     const matches = await pineconeQuery(inputText)
 
@@ -149,7 +201,9 @@ while (true) {
 
     const result = await chainWithHistory.invoke(input, options); 
     console.log(`\nAI Proctor: ${result.content}\n`);
-    // console.log(result.response_metadata);
+    // console.log(result)
+    // console.log(result.lc_kwargs.additional_kwargs.tool_calls)
+    handleToolCalls(result)
 }
 
 
