@@ -1,10 +1,18 @@
 import fs from 'fs';
 import path from 'path';
 import csv from 'csv-parser';
+import readline from 'readline';
 
 interface CsvRow {
     [key: string]: string;
 }
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
+
+export const inputPrompt = (question: string) => new Promise<string>((resolve) => rl.question(question, resolve));
 
 export const csvToJson = (filePath: string): Promise<CsvRow[]> => {
     return new Promise((resolve, reject) => {

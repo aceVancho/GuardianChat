@@ -1,34 +1,20 @@
 import { ChatOpenAI } from "@langchain/openai";
 import dotenv from 'dotenv';
-import readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
-
-import { SystemMessage, BaseMessageChunk } from "@langchain/core/messages";
+import { SystemMessage } from "@langchain/core/messages";
 import { Session, ZepClient } from "@getzep/zep-js";
 import { ZepChatMessageHistory } from "@getzep/zep-js/langchain";
-import {
-    ChatPromptTemplate,
-    MessagesPlaceholder,
-} from "@langchain/core/prompts";
-import {
-    RunnableWithMessageHistory
-} from "@langchain/core/runnables";
-import { pineconeQuery, prompts } from "./query.js";
-import { formatDataForSystemMessage, processFilesInDirectory } from "../utils/utils.js";
+import { ChatPromptTemplate, MessagesPlaceholder, } from "@langchain/core/prompts";
+import { RunnableWithMessageHistory } from "@langchain/core/runnables";
+import { pineconeQuery } from "./query.js";
+import { formatDataForSystemMessage, inputPrompt } from "../utils/utils.js";
 import { handleToolCalls, tools } from "../tools/tools.js";
 import { mockAPICall } from "../api/api.js";
-
+import { prompts } from "./prompts.js";
 
 dotenv.config();
 const ZEP_API_KEY = process.env.ZEP_API_KEY!
 const zepClient = await ZepClient.init(ZEP_API_KEY,);
-
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-
-const inputPrompt = (question: string) => new Promise<string>((resolve) => rl.question(question, resolve));
 
 const prompt = ChatPromptTemplate.fromMessages([
     ["system", prompts.systemPrompts.systemPrompt1],
