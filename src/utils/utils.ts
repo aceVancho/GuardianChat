@@ -24,11 +24,37 @@ export const processFilesInDirectory = async (directoryPath: string): Promise<Re
 
     for (const file of files) {
         if (file.startsWith('data-') && file.endsWith('.csv')) {
-            const key = file.slice(5, -4); // Remove "data-" prefix and ".csv" suffix
+            const key = file.slice(5, -4);
             const filePath = path.join(directoryPath, file);
             data[key] = await csvToJson(filePath);
         }
     }
 
     return data;
+};
+
+export const formatDataForSystemMessage = (data: any): string => {
+    let content = '';
+
+    if (data.enrollments && data.enrollments.length > 0) {
+        content += 'Enrollments:\n';
+        data.enrollments.forEach((enrollment: any) => {
+            Object.entries(enrollment).forEach(([key, value]) => {
+                content += `  ${key}: ${value}\n`;
+            });
+            content += '\n';
+        });
+    }
+
+    if (data.fulfillments && data.fulfillments.length > 0) {
+        content += 'Fulfillments:\n';
+        data.fulfillments.forEach((fulfillment: any) => {
+            Object.entries(fulfillment).forEach(([key, value]) => {
+                content += `  ${key}: ${value}\n`;
+            });
+            content += '\n';
+        });
+    }
+
+    return content.trim();
 };
