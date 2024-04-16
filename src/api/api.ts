@@ -14,7 +14,7 @@ export const mockAPICall = async () => {
 };
 
 async function postLTISession(): Promise<string> {
-    const url = 'https://staging.proctoru.com/api/secure_browser/lti_sessions';
+    const url = process.env.LTI_SESSIONS_ENDPOINT!;
     const headers = {
         'Content-Type': 'application/json',
         'User-Agent': process.env.GUARDIAN_USER_AGENT!,
@@ -41,7 +41,7 @@ async function postLTISession(): Promise<string> {
 }
 
 async function getFulfillmentDetails(cookies: string, uuid: string): Promise<any> {
-    const url = `https://staging.proctoru.com/api/secure_browser/fulfillments/${uuid}`;
+    const url = `${process.env.FULFILLMENT_ENDPOINT!}${uuid}`;
 
     try {
         const response = await fetch(url, {
